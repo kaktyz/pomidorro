@@ -1,6 +1,6 @@
 use crate::{
     ipc::{self, Command},
-    model::{Settings, Snapshot},
+    model::{Phase, Settings, Snapshot},
 };
 use anyhow::Result;
 use crossterm::{
@@ -10,7 +10,7 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, Gauge, List, ListItem, Padding, Paragraph, Wrap},
 };
 use std::{
     fs::OpenOptions,
@@ -77,7 +77,10 @@ pub fn run() -> Result<()> {
             }
             if matches!(ui.page, Page::Exit) {
                 match key.code {
-                    KeyCode::Char('q') | KeyCode::Char('й') | KeyCode::Enter | KeyCode::F(10) => {
+                    KeyCode::Char('q')
+                    | KeyCode::Char('й')
+                    | KeyCode::Enter
+                    | KeyCode::Char('0') => {
                         send(&mut ui, Command::Shutdown);
                         if ui.error.is_empty() {
                             break;
@@ -91,6 +94,7 @@ pub fn run() -> Result<()> {
             }
             if matches!(ui.page, Page::Settings) {
                 match key.code {
+                    KeyCode::Char('0') => ui.page = Page::Exit,
                     KeyCode::Esc => ui.page = Page::Main,
                     KeyCode::Tab | KeyCode::Down => ui.selected = (ui.selected + 1) % 10,
                     KeyCode::BackTab | KeyCode::Up => ui.selected = (ui.selected + 9) % 10,
@@ -108,17 +112,17 @@ pub fn run() -> Result<()> {
                 continue;
             }
             match key.code {
-                KeyCode::F(1) | KeyCode::Char('h') => ui.page = Page::Help,
-                KeyCode::F(2) | KeyCode::Char(' ') => send(&mut ui, Command::Toggle),
-                KeyCode::F(3) | KeyCode::Char('n') => send(&mut ui, Command::Skip),
-                KeyCode::F(4) | KeyCode::Char('s') => ui.page = Page::Stats,
-                KeyCode::F(5) | KeyCode::Char('o') => {
+                KeyCode::Char('1') | KeyCode::Char('h') => ui.page = Page::Help,
+                KeyCode::Char('2') | KeyCode::Char(' ') => send(&mut ui, Command::Toggle),
+                KeyCode::Char('3') | KeyCode::Char('n') => send(&mut ui, Command::Skip),
+                KeyCode::Char('4') | KeyCode::Char('s') => ui.page = Page::Stats,
+                KeyCode::Char('5') | KeyCode::Char('o') => {
                     ui.draft = ui.state.settings.clone();
                     ui.page = Page::Settings;
                 }
-                KeyCode::F(6) | KeyCode::Char('d') => send(&mut ui, Command::ToggleDim),
-                KeyCode::F(7) | KeyCode::Char('m') => send(&mut ui, Command::ToggleSound),
-                KeyCode::F(8) | KeyCode::Char('t') => send(&mut ui, Command::TestNotification),
+                KeyCode::Char('6') | KeyCode::Char('d') => send(&mut ui, Command::ToggleDim),
+                KeyCode::Char('7') | KeyCode::Char('m') => send(&mut ui, Command::ToggleSound),
+                KeyCode::Char('8') | KeyCode::Char('t') => send(&mut ui, Command::TestNotification),
                 KeyCode::Down if matches!(ui.page, Page::Stats) => {
                     ui.history_offset =
                         (ui.history_offset + 1).min(ui.state.stats.recent.len().saturating_sub(1));
@@ -127,7 +131,7 @@ pub fn run() -> Result<()> {
                     ui.history_offset = ui.history_offset.saturating_sub(1);
                 }
                 KeyCode::Char('r') => send(&mut ui, Command::Reset),
-                KeyCode::F(10) | KeyCode::Char('q') => ui.page = Page::Exit,
+                KeyCode::Char('0') | KeyCode::Char('q') => ui.page = Page::Exit,
                 KeyCode::Esc => ui.page = Page::Main,
                 _ => {}
             }
@@ -228,12 +232,24 @@ fn adjust(ui: &mut Ui, step: i32) {
     }
 }
 
-const ACCENT: Color = Color::Cyan;
+const BACKGROUND: Color = Color::Rgb(17, 19, 30);
+const SURFACE: Color = Color::Rgb(26, 29, 44);
+const BORDER: Color = Color::Rgb(55, 60, 81);
+const TEXT: Color = Color::Rgb(226, 230, 243);
+const MUTED: Color = Color::Rgb(146, 153, 177);
+const ACCENT: Color = Color::Rgb(183, 166, 250);
+const FOCUS: Color = Color::Rgb(250, 179, 153);
+const REST: Color = Color::Rgb(143, 218, 187);
+
 fn panel(title: &str) -> Block<'_> {
     Block::default()
         .title(title)
+        .title_style(Style::default().fg(TEXT).bold())
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(ACCENT))
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(BORDER))
+        .style(Style::default().bg(SURFACE).fg(TEXT))
+        .padding(Padding::horizontal(1))
 }
 fn on(value: bool) -> &'static str {
     if value { "Вкл" } else { "Выкл" }
@@ -242,15 +258,15 @@ fn on(value: bool) -> &'static str {
 fn draw(frame: &mut Frame, ui: &Ui) {
     let area = frame.area();
     frame.render_widget(
-        Block::default().style(Style::default().bg(Color::Rgb(15, 23, 42)).fg(Color::White)),
+        Block::default().style(Style::default().bg(BACKGROUND).fg(TEXT)),
         area,
     );
     if area.width < 54 || area.height < 19 {
         let message = if matches!(ui.page, Page::Exit) {
-            "Выход: Enter/q — остановить, b — оставить в фоне, Esc — отмена".to_owned()
+            "Выход: Enter/0 — остановить, b — оставить в фоне, Esc — отмена".to_owned()
         } else {
             format!(
-                "Увеличь терминал до 54×19 или больше.\n{} {:02}:{:02}\nSpace: старт/пауза · q: выход",
+                "Увеличь терминал до 54×19 или больше.\n{} {:02}:{:02}\n2/Space: старт/пауза · 0: выход",
                 ui.state.phase.label(),
                 ui.state.remaining_secs / 60,
                 ui.state.remaining_secs % 60
@@ -260,22 +276,33 @@ fn draw(frame: &mut Frame, ui: &Ui) {
         return;
     }
     let layout = Layout::vertical([
-        Constraint::Length(3),
+        Constraint::Length(2),
         Constraint::Min(9),
-        Constraint::Length(3),
+        Constraint::Length(2),
         Constraint::Length(3),
     ])
-    .split(area);
+    .split(area.inner(Margin::new(1, 1)));
     let s = &ui.state;
+    let phase_color = if s.phase == Phase::Focus { FOCUS } else { REST };
     frame.render_widget(
-        Paragraph::new(format!(
-            "POMIDORRO   │   {}   │   {}   │   Цикл {}/{}",
-            s.phase.label(),
-            if s.running { "Идёт" } else { "Пауза" },
-            s.cycle_completed,
-            s.settings.sessions_per_cycle
-        ))
-        .block(panel(" 🍅 Rust / macOS ")),
+        Paragraph::new(Line::from(vec![
+            Span::styled("● POMIDORRO", Style::default().fg(FOCUS).bold()),
+            Span::styled("   /   ", Style::default().fg(BORDER)),
+            Span::styled(s.phase.label(), Style::default().fg(phase_color)),
+            Span::styled(
+                format!(
+                    "   {}   ·   Цикл {}/{}",
+                    if s.running {
+                        "● Идёт"
+                    } else {
+                        "Ⅱ Пауза"
+                    },
+                    s.cycle_completed,
+                    s.settings.sessions_per_cycle
+                ),
+                Style::default().fg(MUTED),
+            ),
+        ])),
         layout[0],
     );
     match ui.page {
@@ -283,7 +310,7 @@ fn draw(frame: &mut Frame, ui: &Ui) {
         Page::Stats => stats_page(frame, layout[1], s, ui.history_offset),
         Page::Settings => settings_page(frame, layout[1], ui),
         Page::Help => {
-            frame.render_widget(Paragraph::new("Space / F2 — старт, пауза, продолжение\nn / F3 — пропустить этап (без зачёта помидора)\ns / F4 — статистика и история; ↑↓ — прокрутка\no / F5 — настройки; ↑↓ / Tab — выбор, ←→ — изменить\nd / F6 — затемнение на перерывах\nm / F7 — сигнал смены этапов\nt / F8 — проверить уведомление и звук\nr — сбросить цикл\nq / F10 — выход; Esc — назад\n\nТаймер продолжает работать при скрытом терминале.\nПосле сна Mac таймер ставится на паузу.\nСерия растёт при достижении дневной цели.").block(panel(" Помощь ")).wrap(Wrap { trim: true }), layout[1]);
+            frame.render_widget(Paragraph::new("2 / Space — старт, пауза, продолжение\n3 / n — пропустить этап (без зачёта помидора)\n4 / s — статистика и история; ↑↓ — прокрутка\n5 / o — настройки; ↑↓ / Tab — выбор, ←→ — изменить\n6 / d — затемнение на перерывах\n7 / m — сигнал смены этапов\n8 / t — проверить уведомление и звук\nr — сбросить цикл\n0 / q — выход; Esc — назад\n\nТаймер продолжает работать при скрытом терминале.\nПосле сна Mac таймер ставится на паузу.\nСерия растёт при достижении дневной цели.").block(panel(" Помощь ")).wrap(Wrap { trim: true }), layout[1]);
         }
     }
     frame.render_widget(
@@ -293,52 +320,79 @@ fn draw(frame: &mut Frame, ui: &Ui) {
             ui.error.as_str()
         })
         .style(Style::default().fg(if ui.error.is_empty() {
-            Color::Gray
+            MUTED
         } else {
             Color::Red
         }))
-        .block(panel(" Статус ")),
+        .wrap(Wrap { trim: true }),
         layout[2],
     );
-    frame.render_widget(Paragraph::new("1 Помощь  2 Пауза  3 Пропуск  4 Стат.  5 Настр.\n6 Затемн.  7 Звук  8 Проверка  10 Выход  │  Space").style(Style::default().fg(Color::Black).bg(ACCENT)), layout[3]);
+    draw_shortcuts(frame, layout[3], ui);
     if matches!(ui.page, Page::Exit) {
         let popup = centered(area, 54, 9);
         frame.render_widget(Clear, popup);
-        frame.render_widget(Paragraph::new("Enter / q — остановить таймер и выйти\n\nb — оставить таймер работать в меню-баре\n\nEsc — вернуться").block(panel(" Выход ")).style(Style::default().bg(Color::Rgb(30, 41, 59))).alignment(Alignment::Center), popup);
+        frame.render_widget(Paragraph::new("Enter / 0 — остановить таймер и выйти\n\nb — оставить таймер работать в меню-баре\n\nEsc — вернуться").block(panel(" Завершить сессию? ").border_style(Style::default().fg(ACCENT))).alignment(Alignment::Center), popup);
     }
 }
 
 fn main_page(frame: &mut Frame, area: Rect, s: &Snapshot) {
     let rows = Layout::vertical([
-        Constraint::Length(5),
-        Constraint::Length(3),
+        Constraint::Length(if area.height >= 17 { 9 } else { 5 }),
+        Constraint::Length(if area.height >= 17 { 3 } else { 2 }),
         Constraint::Min(1),
     ])
     .split(area);
     let time = format!("{:02}:{:02}", s.remaining_secs / 60, s.remaining_secs % 60);
+    let color = if s.phase == Phase::Focus { FOCUS } else { REST };
+    let mut clock = vec![Line::from(Span::styled(
+        s.phase.label(),
+        Style::default().fg(MUTED),
+    ))];
+    if rows[0].height >= 9 {
+        clock.extend(
+            clock_digits(&time)
+                .into_iter()
+                .map(|line| Line::from(Span::styled(line, Style::default().fg(color)))),
+        );
+    } else {
+        clock.push(Line::from(Span::styled(
+            time,
+            Style::default().fg(color).bold(),
+        )));
+    }
+    clock.push(Line::from(Span::styled(
+        if s.running {
+            "2 / Space — поставить на паузу"
+        } else {
+            "2 / Space — начать или продолжить"
+        },
+        Style::default().fg(MUTED),
+    )));
     frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(""),
-            Line::from(Span::styled(time, Style::default().fg(ACCENT).bold())),
-            Line::from(s.phase.label()),
-        ])
-        .alignment(Alignment::Center)
-        .block(panel(" Таймер ")),
+        Paragraph::new(clock)
+            .alignment(Alignment::Center)
+            .block(panel(" Таймер ").border_style(Style::default().fg(color))),
         rows[0],
     );
     let progress = 1.0 - (s.remaining_secs as f64 / s.total_secs.max(1) as f64).clamp(0.0, 1.0);
     frame.render_widget(
         Gauge::default()
             .ratio(progress)
-            .gauge_style(Style::default().fg(ACCENT))
-            .block(panel(" Прогресс ")),
+            .gauge_style(Style::default().fg(color).bg(BORDER))
+            .label(format!("{:.0}% завершено", progress * 100.0))
+            .block(if rows[1].height >= 3 {
+                panel(" Прогресс ")
+            } else {
+                Block::default().padding(Padding::horizontal(2))
+            }),
         rows[1],
     );
-    let cols =
-        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).split(rows[2]);
+    let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .spacing(1)
+        .split(rows[2]);
     frame.render_widget(
         Paragraph::new(format!(
-            "Помидоры: {} / {}\nФокус: {} мин\nСерия: {} дн.\nЗа 7 дней: {} пом.",
+            "Помидоры     {} / {}\nФокус        {} мин\nСерия        {} дн.\nЗа 7 дней    {} пом.",
             s.stats.today_count,
             s.settings.daily_goal,
             s.stats.today_seconds / 60,
@@ -348,7 +402,105 @@ fn main_page(frame: &mut Frame, area: Rect, s: &Snapshot) {
         .block(panel(" Сегодня ")),
         cols[0],
     );
-    frame.render_widget(Paragraph::new(format!("Работа: {} мин\nПерерыв: {} мин\nДлинный: {} мин\nЗатемнение: {} · {:.0}%\nЗвук: {} · Тик: {}", s.settings.focus_minutes, s.settings.break_minutes, s.settings.long_break_minutes, on(s.settings.dim_enabled), s.settings.dim_opacity * 100.0, on(s.settings.sound), on(s.settings.ticking))).block(panel(" Цикл ")), cols[1]);
+    frame.render_widget(Paragraph::new(format!("Работа / отдых  {} / {} мин\nДлинный отдых   {} мин\nЭкран  {} · {:.0}%\nЗвук   {} · Тик {}", s.settings.focus_minutes, s.settings.break_minutes, s.settings.long_break_minutes, on(s.settings.dim_enabled), s.settings.dim_opacity * 100.0, on(s.settings.sound), on(s.settings.ticking))).block(panel(" Цикл ")), cols[1]);
+}
+
+fn clock_digits(time: &str) -> Vec<String> {
+    const DIGITS: [[&str; 5]; 10] = [
+        ["███", "█ █", "█ █", "█ █", "███"],
+        [" █ ", "██ ", " █ ", " █ ", "███"],
+        ["███", "  █", "███", "█  ", "███"],
+        ["███", "  █", "███", "  █", "███"],
+        ["█ █", "█ █", "███", "  █", "  █"],
+        ["███", "█  ", "███", "  █", "███"],
+        ["███", "█  ", "███", "█ █", "███"],
+        ["███", "  █", "  █", "  █", "  █"],
+        ["███", "█ █", "███", "█ █", "███"],
+        ["███", "█ █", "███", "  █", "███"],
+    ];
+    (0..5)
+        .map(|row| {
+            time.chars()
+                .map(|ch| {
+                    if let Some(digit) = ch.to_digit(10) {
+                        DIGITS[digit as usize][row]
+                    } else if row == 1 || row == 3 {
+                        " ▪ "
+                    } else {
+                        "   "
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("  ")
+        })
+        .collect()
+}
+
+fn draw_shortcuts(frame: &mut Frame, area: Rect, ui: &Ui) {
+    let lines = if matches!(ui.page, Page::Settings) {
+        vec![
+            Line::from(
+                vec![
+                    shortcut("↑↓", "Выбор"),
+                    shortcut("←→", "Изменить"),
+                    shortcut("Enter", "Сохранить"),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            ),
+            Line::from(
+                vec![shortcut("Esc", "Отмена"), shortcut("0", "Выход")]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>(),
+            ),
+        ]
+    } else {
+        vec![
+            Line::from(
+                vec![
+                    shortcut("1", "Помощь"),
+                    shortcut(
+                        "2",
+                        if ui.state.running {
+                            "Пауза"
+                        } else {
+                            "Старт"
+                        },
+                    ),
+                    shortcut("3", "Пропуск"),
+                    shortcut("4", "Стат."),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            ),
+            Line::from(
+                vec![
+                    shortcut("5", "Настр."),
+                    shortcut("6", "Экран"),
+                    shortcut("7", "Звук"),
+                    shortcut("8", "Тест"),
+                    shortcut("0", "Выход"),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            ),
+        ]
+    };
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn shortcut<'a>(key: &str, label: &'a str) -> Vec<Span<'a>> {
+    vec![
+        Span::styled(
+            format!(" {key} "),
+            Style::default().fg(ACCENT).bg(SURFACE).bold(),
+        ),
+        Span::styled(format!(" {label}  "), Style::default().fg(MUTED)),
+    ]
 }
 
 fn stats_page(frame: &mut Frame, area: Rect, s: &Snapshot, offset: usize) {
@@ -401,7 +553,7 @@ fn settings_page(frame: &mut Frame, area: Rect, ui: &Ui) {
             Line::from(Span::styled(
                 format!("{} {text}", if i == ui.selected { "▸" } else { " " }),
                 if i == ui.selected {
-                    Style::default().fg(Color::Black).bg(ACCENT).bold()
+                    Style::default().fg(ACCENT).bg(BORDER).bold()
                 } else {
                     Style::default()
                 },

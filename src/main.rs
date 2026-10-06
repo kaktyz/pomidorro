@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     }
     if std::env::args().any(|arg| arg == "--help" || arg == "-h") {
         println!(
-            "Pomidorro — помидорный таймер для macOS\n\nЗапуск: pomidorro\nУправление внутри TUI: Space — старт/пауза, F1 — помощь, F10 — выход."
+            "Pomidorro — помидорный таймер для macOS\n\nЗапуск: pomidorro\nУправление внутри TUI: 2/Space — старт/пауза, 1 — помощь, 0 — выход."
         );
         return Ok(());
     }
