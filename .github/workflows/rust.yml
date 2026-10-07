@@ -1,0 +1,31 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Rust Marker Linter
+      # You may pin to the exact commit or the version.
+      # uses: rust-marker/marker@8148ed377bba7b873b791915dc271c75fd5b828e
+      uses: rust-marker/marker@v0.4.3
+      with:
+        # If set to `true` then the action will only install `cargo marker`, and will skip running `cargo marker`. Use this if you want to run something more complex than just `cargo marker`. If you think there may be a frequent use case for running a different command then we will be glad if you open a feature request issue for that to extend the action input parameters.
+    
+        install-only: # optional, default is false      
+    - name: Build
+      run: cargo build --verbose
